@@ -88,7 +88,25 @@ def make_lock_spec(
 
     lock_specs = _parse_source_files(src_files, platforms)
 
+    if required_categories is not None:
+        # Filtering based on category (e.g. "main" or "dev") was requested.
+        # Thus we need to filter the specs based on the category.
+        def dep_has_category(d: Dependency, categories: AbstractSet[str]) -> bool:
+            return d.category in categories
+
+        for lock_spec in lock_specs:
+            lock_spec.dependencies = {
+                platform: [
+                    d
+                    for d in deps
+                    if dep_has_category(d, categories=required_categories)
+                ]
+                for platform, deps in lock_spec.dependencies.items()
+            }
+
     aggregated_lock_spec = aggregate_lock_specs(lock_specs, platforms)
+
+    dependencies = aggregated_lock_spec.dependencies
 
     # Use channel overrides if given, otherwise use the channels specified in the
     # source files.
@@ -97,23 +115,6 @@ def make_lock_spec(
         if channel_overrides
         else aggregated_lock_spec.channels
     )
-
-    if required_categories is None:
-        dependencies = aggregated_lock_spec.dependencies
-    else:
-        # Filtering based on category (e.g. "main" or "dev") was requested.
-        # Thus we need to filter the specs based on the category.
-        def dep_has_category(d: Dependency, categories: AbstractSet[str]) -> bool:
-            return d.category in categories
-
-        dependencies = {
-            platform: [
-                d
-                for d in dependencies
-                if dep_has_category(d, categories=required_categories)
-            ]
-            for platform, dependencies in aggregated_lock_spec.dependencies.items()
-        }
 
     return LockSpecification(
         dependencies=dependencies,
